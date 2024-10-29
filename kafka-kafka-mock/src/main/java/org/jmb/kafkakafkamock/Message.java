@@ -67,6 +67,7 @@ public class Message {
     }
 }
 
+@RegisterForReflection
 class MessageDetails {
     private String message;
 
