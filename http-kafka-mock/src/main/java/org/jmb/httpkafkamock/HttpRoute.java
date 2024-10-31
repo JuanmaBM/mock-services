@@ -1,46 +1,49 @@
 package org.jmb.httpkafkamock;
 
-import java.time.Instant;
-import java.time.format.DateTimeFormatter;
-import java.util.UUID;
-
-import org.apache.camel.Processor;
-import org.apache.camel.builder.RouteBuilder;
-import org.apache.camel.model.dataformat.JsonLibrary;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.reactive.messaging.Channel;
+import org.eclipse.microprofile.reactive.messaging.Emitter;
+import org.jboss.logging.Logger;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 
+@Path("/")
 @ApplicationScoped
-public class HttpRoute extends RouteBuilder {
+public class HttpRoute {
+
+    private static final Logger LOG = Logger.getLogger(HttpRoute.class);
 
     @ConfigProperty(name = "mock.kafka.sending.delay")
     private Integer delayInMilliSeconds;
 
-    @Override
-    public void configure() throws Exception {
-        from("netty-http:http://0.0.0.0:{{netty.server.port}}?httpMethodRestrict=POST")
-            .log("Message received from HTTP POST: ${body}")
-            // Unmarshal and marshal are performed to send a standart message and remove not supported fields
-            .unmarshal().json(JsonLibrary.Jackson, MessageDetails.class)
-            .process(createEventMessage)
-            .marshal().json(JsonLibrary.Jackson)
-            .log("Waiting " + delayInMilliSeconds + " ms")
-            .delay(delayInMilliSeconds)
-            .log("Sending message to kafka topic {{kafka.topic.name}}")
-            .to("kafka:{{kafka.topic.name}}")
-        .end();
+    @ConfigProperty(name = "kafka.topic.name")
+    private String topic;
+
+    @Inject
+    @Channel("input") // Canal de salida de Kafka
+    private Emitter<Message> messageEmitter;
+
+    @POST
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response processMessage(MessageDetails request) throws InterruptedException {
+
+        final Message cloudEvent = new Message();
+        cloudEvent.setData(request);
+        LOG.info(String.format("Waiting %d seconds", delayInMilliSeconds));
+        Thread.sleep(delayInMilliSeconds);
+        LOG.info(String.format("Sending message to %s topic", topic));
+        messageEmitter.send(cloudEvent);
+
+        return Response.ok().build();
     }
 
-    private Processor createEventMessage = exchange -> {
-        final MessageDetails operationRequest = exchange.getIn().getBody(MessageDetails.class);
-        
-        final Message operationEvent = new Message();
-        operationEvent.setId(UUID.randomUUID().toString());
-        operationEvent.setTime(Instant.now().atZone(java.time.ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT));
-        operationEvent.setContentType("application/json");
-        operationEvent.setData(operationRequest);
-
-        exchange.getIn().setBody(operationEvent);
-    };
 }
