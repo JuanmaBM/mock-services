@@ -13,7 +13,7 @@ public class Route extends RouteBuilder {
 
     @Override
     public void configure() throws Exception {
-        from("kafka:{{kafka.topic.input}}")
+        from("kafka:{{kafka.topic.input}}?groupId={{kafka.group.id}}")
             .log("Message received from topic {{kafka.topic.input}}: ${body}")
             .log("Processing message for " + delayInMilliSeconds + " ms")
             .delay(delayInMilliSeconds)
