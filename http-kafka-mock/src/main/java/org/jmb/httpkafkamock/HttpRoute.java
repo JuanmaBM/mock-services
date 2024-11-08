@@ -1,5 +1,7 @@
 package org.jmb.httpkafkamock;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
@@ -8,7 +10,6 @@ import org.jboss.logging.Logger;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -21,8 +22,11 @@ public class HttpRoute {
 
     private static final Logger LOG = Logger.getLogger(HttpRoute.class);
 
-    @ConfigProperty(name = "mock.kafka.sending.delay")
-    private Integer delayInMilliSeconds;
+    @ConfigProperty(name = "mock.kafka.sending.delay.max")
+    private Integer maxDelayInMilliSeconds;
+
+    @ConfigProperty(name = "mock.kafka.sending.delay.min")
+    private Integer minDelayInMilliSeconds;
 
     @ConfigProperty(name = "kafka.topic.name")
     private String topic;
@@ -38,6 +42,7 @@ public class HttpRoute {
 
         final Message cloudEvent = new Message();
         cloudEvent.setData(request);
+        var delayInMilliSeconds = ThreadLocalRandom.current().nextInt(minDelayInMilliSeconds, maxDelayInMilliSeconds + 1);
         LOG.info(String.format("Waiting %d seconds", delayInMilliSeconds));
         Thread.sleep(delayInMilliSeconds);
         LOG.info(String.format("Sending message to %s topic", topic));
